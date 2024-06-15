@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contry/Region Statistics</title>
+    <style>
+
+        svg {
+            display: block;
+            max-width: 90dvh;
+            margin: 0 auto;
+        }
+
+        circle {
+            fill: black;
+        }
+
+        text {
+            text-anchor: middle;
+            fill: white;
+        }
+
+        .label {
+            font-family: sans-serif;
+        }
+
+        .value {
+            font-family: serif;
+        }
+
+        select {
+            position: absolute;
+            top: 1em;
+            left: 1em;
+        }
+
+    </style>
+</head>
+<body>
+<select>
+    <optgroup data-source="countries" label="Countries by">
+        <option value="population">Population</option>
+        <option value="numBorders">Borders</option>
+        <option value="numLanguages">Laguages</option>
+        <option value="numTimezones">Timezones</option>
+    </optgroup>
+    <hr>
+    <optgroup data-source="regions" label="Regions by">
+        <option value="numCountries">Countries</option>
+        <option value="numTimezones">Timezones</option>
+    </optgroup>
+</select>
+<svg class="chart"></svg>
+</body>
+<script src="//d3js.org/d3.v7.min.js" charset="utf-8"></script>
+<script type="module">
+
+import { getSelectedOption } from './util.js'
+
+const diameter = 500;
+
+const duration = 2000;
+
+const menu = document.querySelector("select");
+menu.addEventListener("change", async (event) => {
+    const option = getSelectedOption(event.target)
+    dataPoint = option.value;
+    dataSource = option.closest("optgroup").dataset.source;
+    data = await getData(dataSource);
+    render();
+});
+
+let selectedOption = getSelectedOption(menu),
+    dataPoint = selectedOption.value,
+    dataSource = selectedOption.closest("optgroup").dataset.source;
+
+let data = await getData(dataSource);
+
+function getLabel(datum) {
+    const key = dataSource === "countries" ? "alpha3Code" : "name";
+    return datum.data[key];
+}
+
+function render() {
+    const pack = d3.pack()
+        .size([diameter, diameter])
+        .padding(3);
+
+    const root = pack(d3.hierarchy(data)
+    .sum(d => d[dataPoint]));
+    
+    const selection = d3.select("svg")
+        .attr("viewBox", [0, 0, diameter, diameter])
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .selectAll("g")
+        .data(root.leaves(), d => d.data.name);
+    
+    const selectionEnter = selection.enter()
+        .append("g")
+        .attr("transform", d => `translate(${d.x}, ${d.y})`)
+        .classed("bubble", true);
+    
+    selectionEnter.append("circle")
+        .classed("name", true)
+        .attr("r", d => d.r)
+
+    const text = selectionEnter.append("text")
+        .attr("transform", d => `scale(${ d.r / 70 })`)
+
+    text.append("tspan")
+        .attr("class", "label")
+        .attr("x", 0)
+        .attr("y", "-0.6em")
+        .text(d => getLabel(d));
+
+    text.append("tspan")
+        .attr("class", "value")
+        .attr("x", 0)
+        .attr("y", "0.6em")
+        .text(d => d.value);
+
+    selection.exit()
+        .remove();
+
+    selection
+        .transition()
+        .duration(duration)
+        .attr("transform", d => `translate(${d.x}, ${d.y})`);
+    
+    selection.select("circle")
+        .transition()
+        .duration(duration)
+        .attr("r", d => d.r)
+
+    selection.select("text")
+        .transition()
+        .duration(duration)
+        .attr("transform", d => `scale(${ d.r / 70 })`)
+
+        selection.select(".label")
+            .text(d => getLabel(d));
+
+        selection.select(".value")
+            .text(d => d.value);
+};
+
+render();
+
+async function getData(source) {
+    // const sources = {};
+
+    let countries = await d3.json("data/countries.json");
+    countries = countries.map(c => {
+        c.numBorders = c.borders.length;
+        c.numTimezones = c.timezones.length;
+        c.numLanguages = c.languages.length;
+        return c
+    });
+    // sources["countries"] = { "children": countries }
+    if (source === "countries") return { "children": countries };
+    
+    // const obj = Object.groupBy(countries, ({ region }) => region);
+    // const regions = [];
+    // for (const [region, countries] of Object.entries(obj)) {
+    //     regions.push({
+    //         name: region,
+    //         numCountries: countries.length,
+    //         numTimezones: 0,
+    //     })
+    // }
+
+    let regions = {};
+    countries.forEach(country => {
+        if (!regions.hasOwnProperty(country.region)) {
+            regions[country.region] = {
+                "name": country.region,
+                "numCountries": new Set([country.name]),
+                "numTimezones": new Set(country.timezones),
+            };
+        } else {
+            regions[country.region].numCountries.add(country.name);
+            country.timezones.forEach(timezone => {
+                regions[country.region].numTimezones.add(timezone);
+            });
+        }
+    });
+    regions = Object.values(regions).map(r => {
+        r.numCountries = r.numCountries.size;
+        r.numTimezones = r.numTimezones.size;
+        return r;
+    })
+    // sources["regions"] = { "children": regions }
+    if (source === "regions") return { "children": regions };
+
+    // return sources[source];
+    throw new Error(`Data source '${source}' not found`);
+};
+  
+</script>
+</html>
