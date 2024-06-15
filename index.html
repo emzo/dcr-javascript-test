@@ -8,7 +8,7 @@
 
         svg {
             display: block;
-            max-width: 90dvh;
+            max-width: 50em;
             margin: 0 auto;
         }
 
@@ -29,29 +29,50 @@
             font-family: serif;
         }
 
-        select {
-            position: absolute;
-            top: 1em;
-            left: 1em;
+        p {
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            max-width: 35em;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+
+        tr:nth-child(even) {
+            background-color: black;
+            color: white;
+        }
+
+        td {
+            padding: .4em .8em
+        }
+
+        td:last-of-type {
+            text-align: right;
         }
 
     </style>
 </head>
 <body>
+<p>Show 
 <select>
     <optgroup data-source="countries" label="Countries by">
-        <option value="population">Population</option>
-        <option value="numBorders">Borders</option>
-        <option value="numLanguages">Laguages</option>
-        <option value="numTimezones">Timezones</option>
+        <option value="population">Population size</option>
+        <option value="numBorders">Number of borders</option>
+        <option value="numLanguages">Number of timezones</option>
+        <option value="numTimezones">Number of languages</option>
     </optgroup>
     <hr>
     <optgroup data-source="regions" label="Regions by">
-        <option value="numCountries">Countries</option>
-        <option value="numTimezones">Timezones</option>
+        <option value="numCountries">Number of countries in region</option>
+        <option value="numTimezones">Number of unique timezones in region</option>
     </optgroup>
 </select>
+</p>
 <svg class="chart"></svg>
+<table></table>
 </body>
 <script src="//d3js.org/d3.v7.min.js" charset="utf-8"></script>
 <script type="module">
@@ -88,62 +109,87 @@ function render() {
         .padding(3);
 
     const root = pack(d3.hierarchy(data)
-    .sum(d => d[dataPoint]));
+        .sum(d => d[dataPoint]));
     
-    const selection = d3.select("svg")
+    const chart = d3.select("svg")
         .attr("viewBox", [0, 0, diameter, diameter])
         .attr("width", "100%")
         .attr("height", "100%")
         .selectAll("g")
         .data(root.leaves(), d => d.data.name);
     
-    const selectionEnter = selection.enter()
+    const chartEnter = chart.enter()
         .append("g")
         .attr("transform", d => `translate(${d.x}, ${d.y})`)
         .classed("bubble", true);
     
-    selectionEnter.append("circle")
+    chartEnter.append("circle")
         .classed("name", true)
         .attr("r", d => d.r)
 
-    const text = selectionEnter.append("text")
+    const chartText = chartEnter.append("text")
         .attr("transform", d => `scale(${ d.r / 70 })`)
 
-    text.append("tspan")
+    chartText.append("tspan")
         .attr("class", "label")
         .attr("x", 0)
         .attr("y", "-0.6em")
         .text(d => getLabel(d));
 
-    text.append("tspan")
+    chartText.append("tspan")
         .attr("class", "value")
         .attr("x", 0)
         .attr("y", "0.6em")
-        .text(d => d.value);
+        .text(d => d.value.toLocaleString());
 
-    selection.exit()
+    chart.exit()
         .remove();
 
-    selection
-        .transition()
+    chart.transition()
         .duration(duration)
         .attr("transform", d => `translate(${d.x}, ${d.y})`);
     
-    selection.select("circle")
+    chart.select("circle")
         .transition()
         .duration(duration)
         .attr("r", d => d.r)
 
-    selection.select("text")
+    chart.select("text")
         .transition()
         .duration(duration)
         .attr("transform", d => `scale(${ d.r / 70 })`)
 
-        selection.select(".label")
-            .text(d => getLabel(d));
+    chart.select(".label")
+        .text(d => getLabel(d));
 
-        selection.select(".value")
-            .text(d => d.value);
+    chart.select(".value")
+        .text(d => d.value.toLocaleString());
+
+    // Table
+    const table = d3.select("table")
+        .selectAll("tr")
+        .data(root.leaves(), d => d.data.name);
+
+    const tableEnter = table.enter()
+        .append("tr");
+
+    tableEnter.append("td")
+        .attr("class", "label")
+        .html(d => d.data.name);
+        
+    tableEnter.append("td")
+        .attr("class", "value")
+        .html(d => d.value.toLocaleString());
+
+    table.exit()
+        .remove();
+
+    table.select(".label")
+        .html(d => d.data.name);
+
+    table.select(".value")
+        .html(d => d.value.toLocaleString())
+
 };
 
 render();
