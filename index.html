@@ -6,6 +6,10 @@
     <title>Contry/Region Statistics</title>
     <style>
 
+        body {
+            position: relative;
+        }
+
         svg {
             display: block;
             max-width: 50em;
@@ -19,6 +23,11 @@
         text {
             text-anchor: middle;
             fill: white;
+            pointer-events: none;
+        }
+
+        .highlight {
+            fill: deeppink;
         }
 
         .label {
@@ -31,6 +40,36 @@
 
         p {
             text-align: center;
+        }
+
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            border: 1px solid white;
+            border-radius: 3px;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        dl {
+            display: grid;
+            gap: .35em;
+            grid-template-columns: max-content auto;
+            margin: .75em 1em;
+        }
+
+        dt {
+            font-family: sans-serif;
+            grid-column-start: 1;
+        }
+
+        dt::after {
+            margin-left: .15em;
+            content: ":"
+        }
+
+        dd {
+            grid-column-start: 2;
         }
 
         table {
@@ -56,6 +95,7 @@
     </style>
 </head>
 <body>
+    <svg class="chart"></svg>
 <p>Show 
 <select>
     <optgroup data-source="countries" label="Countries by">
@@ -71,7 +111,6 @@
     </optgroup>
 </select>
 </p>
-<svg class="chart"></svg>
 <table></table>
 </body>
 <script src="//d3js.org/d3.v7.min.js" charset="utf-8"></script>
@@ -118,6 +157,62 @@ function render() {
         .selectAll("g")
         .data(root.leaves(), d => d.data.name);
     
+    const tooltip = d3.select("body")
+        .append("div")   
+        .attr("id", "tooltip")
+
+    const mouseover = function(event, d) {
+        if (dataSource !== "countries") return
+        tooltip.style("opacity", 1);
+        
+        const dl = tooltip.append("dl");
+
+        dl.append("dt")
+            .html("Name")
+        dl.append("dd")
+            .html(d.data.name)
+
+        dl.append("dt")
+            .html("Capital")
+        dl.append("dd")
+            .html(d.data.capital);
+
+        dl.append("dt")
+            .html("Region")
+        dl.append("dd")
+            .html(d.data.region);
+
+        dl.append("dt")
+            .html("Subregion")
+        dl.append("dd")
+            .html(d.data.subregion);
+
+        dl.append("dt")
+            .html("Top Level Domain")
+        dl.append("dd")
+            .html(d.data.topLevelDomain[0] || "n/a");
+
+        d3.select(this)
+            .classed("highlight", true)
+    }
+
+    const mousemove = function(event, d) {
+        if (dataSource !== "countries") return
+        tooltip
+            .style("left", `${event.pageX + 10}px`)
+            .style("top", `${event.pageY - 20}px`)
+    }
+
+    const mouseleave = function(event, d) {
+        if (dataSource !== "countries") return
+        tooltip
+            .html("")
+            .style("opacity", 0)
+
+        d3.select(this)
+            .classed("highlight", false)
+    }
+
     const chartEnter = chart.enter()
         .append("g")
         .attr("transform", d => `translate(${d.x}, ${d.y})`)
@@ -126,6 +221,9 @@ function render() {
     chartEnter.append("circle")
         .classed("name", true)
         .attr("r", d => d.r)
+        .on("mouseover", mouseover)
+        .on("mousemove", mousemove)
+        .on("mouseleave", mouseleave);
 
     const chartText = chartEnter.append("text")
         .attr("transform", d => `scale(${ d.r / 70 })`)
@@ -165,7 +263,7 @@ function render() {
     chart.select(".value")
         .text(d => d.value.toLocaleString());
 
-    // Table
+
     const table = d3.select("table")
         .selectAll("tr")
         .data(root.leaves(), d => d.data.name);
@@ -206,16 +304,6 @@ async function getData(source) {
     });
     // sources["countries"] = { "children": countries }
     if (source === "countries") return { "children": countries };
-    
-    // const obj = Object.groupBy(countries, ({ region }) => region);
-    // const regions = [];
-    // for (const [region, countries] of Object.entries(obj)) {
-    //     regions.push({
-    //         name: region,
-    //         numCountries: countries.length,
-    //         numTimezones: 0,
-    //     })
-    // }
 
     let regions = {};
     countries.forEach(country => {
